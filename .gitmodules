@@ -1,10 +1,9 @@
-[submodule "lib/nlohmannjson"]
-	path = lib/nlohmannjson
-	url = https://github.com/nlohmann/json.git
 [submodule "lib/curlpp"]
 	path = lib/curlpp
 	url = https://github.com/Aidoboy/curlpp.git
-	branch = experimental
 [submodule "lib/websocketpp"]
 	path = lib/websocketpp
 	url = https://github.com/zaphoyd/websocketpp.git
+[submodule "lib/json"]
+	path = lib/json
+	url = https://github.com/nlohmann/json.git
