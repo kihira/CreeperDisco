@@ -63,18 +63,28 @@ namespace creeper {
         return {};
     }
 
+    inline string replace(string& input, const string& search, const string& replace) {
+        size_t f = input.find(search);
+        if (f != string::npos) input.replace(f, search.length(), replace);
+        return input;
+    }
+
     class Command {
-    private:
-        string cmd;
-        string endpoint;
-        vector<string> argNames;
     public:
-        Command(string cmd, string endpoint, vector<string> args = {}) {
+        Command(const string cmd, const string endpoint, vector<string> args = {}) {
             this->cmd = cmd;
             this->endpoint = endpoint;
             this->argNames = args;
         }
-        json call(vector<string>args = {}) {
+        virtual string run(vector<string>args = {}) {
+            return call(args).dump();
+        }
+    private:
+        string cmd;
+        string endpoint;
+        vector<string> argNames;
+    protected:
+        json call(vector<string>args) {
             json data;
             if (argNames.size() > 0) {
                 if (args.size() != argNames.size()) throw CreeperException("Invalid number of parameters for command!");
@@ -86,6 +96,34 @@ namespace creeper {
 
             return creeper::call(endpoint, data);
         }
+    };
+
+    class FormattedCommand : public Command {
+    public:
+        FormattedCommand(const string &cmd, const string &endpoint, const vector<string> &args, const string returnString) : Command(cmd, endpoint, args) {
+            this->returnString = returnString;
+        }
+        string run(vector<string>args = {}) {
+            json data;
+            try {
+                data = call(args);
+            }
+            catch (CreeperException &e) {
+                return e.what();
+            }
+
+            cout << data.dump() << endl;
+            string formattedString = returnString;
+            for (json::iterator it = data.begin(); it != data.end(); ++it) {
+                if (it.value().is_object()) continue; // ignore objects for now
+                string key = "$"+it.key()+"$";
+                string value = it.value().dump();
+                replace(formattedString, key, value);
+            }
+            return formattedString;
+        }
+    private:
+        string returnString;
     };
 
     map<string, Command*> commands;

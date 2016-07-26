@@ -29,6 +29,7 @@ int main(int argc, char *argv[]) {
 
     // OOP style commands
     creeper::commands["getram"] = new creeper::Command("getram", "os/getram");
+    creeper::commands["getram2"] = new creeper::FormattedCommand("getram2", "os/getram", {}, "Free: $free$, Used: $used$");
 
     // using function pointers for commands. Good for simple replies but might not work well for larger ones.
     typedef string(*Cmd)(vector<string>);
@@ -41,11 +42,12 @@ int main(int argc, char *argv[]) {
         getline(cin, in);
         if (in.find("quit") != string::npos) break;
         try {
+            if (in.length() == 0) continue;
             if (cmds.find(in) != cmds.end()) {
                 cout << cmds[in]({}) << endl;
             }
             else if (creeper::commands.find(in) != creeper::commands.end()) {
-                cout << creeper::commands[in]->call() << endl;
+                cout << creeper::commands[in]->run() << endl;
             }
             else cout << creeper::call(in) << endl;
         }
