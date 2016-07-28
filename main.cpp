@@ -21,8 +21,7 @@ int main(int argc, char *argv[]) {
         cout << "Invalid number of arguments!";
         return 1;
     }
-    creeper::key = argv[1];
-    creeper::secret = argv[2];
+    creeper::login = creeper::KeySecretPair(argv[1], argv[2]);
 
     // todo Test details are valid
     //if (creeper::call()
@@ -35,6 +34,7 @@ int main(int argc, char *argv[]) {
     typedef string(*Cmd)(vector<string>);
     map<string, Cmd> cmds;
     cmds["getcpu"] = [](vector<string> args)->string{ return creeper::call("os/getcpu").dump();};
+    //cmds["getcpu"] = [](vector<string> args)->string {return creeper::commands["getram2"]->run(args);};
 
     do {
         string in;

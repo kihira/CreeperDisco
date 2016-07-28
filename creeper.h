@@ -13,9 +13,10 @@ namespace creeper {
     using namespace curlpp::Options;
     using json = nlohmann::json;
 
+    typedef pair<string, string> KeySecretPair;
+
     const string API_URL = "https://api.creeper.host/";
-    string key;
-    string secret;
+    KeySecretPair login;
 
     struct CreeperException : public exception {
         virtual const char *what() throw() {
@@ -37,8 +38,8 @@ namespace creeper {
             curlpp::Cleanup cleanup; // Clean up used resources
             curlpp::Easy request;
             curlpp::Forms form;
-            form.push_back(new curlpp::FormParts::Content("key", key));
-            form.push_back(new curlpp::FormParts::Content("secret", secret));
+            form.push_back(new curlpp::FormParts::Content("key", login.first));
+            form.push_back(new curlpp::FormParts::Content("secret", login.second));
             form.push_back(new curlpp::FormParts::Content("data", data.dump()));
 
             request.setOpt<WriteStream>(&outstream);
