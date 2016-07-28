@@ -3,6 +3,7 @@
 
 #include <string>
 #include <fstream>
+#include <curlpp/Infos.hpp>
 #include "lib/json/src/json.hpp"
 #include "lib/curlpp/include/curlpp/cURLpp.hpp"
 #include "lib/curlpp/include/curlpp/Easy.hpp"
@@ -49,17 +50,24 @@ namespace creeper {
             request.perform();
 
             json returned = json::parse(outstream.str());
-            if (returned.at("status").get<string>() == "error") {
-                throw CreeperException(returned.at("message").get<string>());
+            long response = curlpp::infos::ResponseCode::get(request);
+            if (response != 200l) {
+                throw CreeperException("Server returned Response Code " + to_string(response));
+            }
+            if (returned.empty()){
+                throw CreeperException("Server returned empty response");
+            }
+            else if (returned["status"].get<string>() == "error") {
+                throw CreeperException(returned["message"].get<string>());
             }
             if (callback != NULL) callback(returned);
             return returned;
         }
         catch (curlpp::LogicError &e) {
-            cout << e.what() << endl;
+            cerr << e.what() << endl;
         }
         catch (curlpp::RuntimeError &e) {
-            cout << e.what() << endl;
+            cerr << e.what() << endl;
         }
         return {};
     }
@@ -113,7 +121,6 @@ namespace creeper {
                 return e.what();
             }
 
-            cout << data.dump() << endl;
             string formattedString = returnString;
             for (json::iterator it = data.begin(); it != data.end(); ++it) {
                 if (it.value().is_object()) continue; // ignore objects for now

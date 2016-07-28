@@ -52,13 +52,13 @@ int main(int argc, char *argv[]) {
             else cout << creeper::call(in) << endl;
         }
         catch (creeper::CreeperException e) {
-            cout << e.what() << endl;
+            cerr << e.what() << endl;
         }
         catch (curlpp::LogicError &e) {
-            cout << e.what() << endl;
+            cerr << e.what() << endl;
         }
         catch (curlpp::RuntimeError &e) {
-            cout << e.what() << endl;
+            cerr << e.what() << endl;
         }
     } while (true);
 
