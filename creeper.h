@@ -4,6 +4,7 @@
 #include <string>
 #include <fstream>
 #include <curlpp/Infos.hpp>
+#include <unistd.h>
 #include "lib/json/src/json.hpp"
 #include "lib/curlpp/include/curlpp/cURLpp.hpp"
 #include "lib/curlpp/include/curlpp/Easy.hpp"
@@ -54,7 +55,7 @@ namespace creeper {
             if (response != 200l) {
                 throw CreeperException("Server returned Response Code " + to_string(response));
             }
-            if (returned.empty()){
+            else if (returned.empty()){
                 throw CreeperException("Server returned empty response");
             }
             else if (returned["status"].get<string>() == "error") {
@@ -69,7 +70,25 @@ namespace creeper {
         catch (curlpp::RuntimeError &e) {
             cerr << e.what() << endl;
         }
+        catch (CreeperException &e) {
+            cerr << e.what() << endl;
+        }
         return {};
+    }
+
+    inline void alertLoop(int delay) {
+        do {
+            cout << "Doing alerts" << endl;
+            json data = call("api/alerts");
+            //cout << data.dump(4) << endl;
+            if (!data.empty()) {
+                for (int i = 0; i < data["alerts"].size(); ++i) {
+                    cout << ((json)data["alerts"][i])["notes"].get<string>() << endl;
+                }
+            }
+            cout << "Sleeping alerts" << endl;
+            sleep(delay);
+        } while (true);
     }
 
     inline string replace(string& input, const string& search, const string& replace) {

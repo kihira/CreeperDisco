@@ -1,14 +1,8 @@
 #include <iostream>
+#include <thread>
 #include "creeper.h"
 
 using namespace std;
-
-string getRamUsage() {
-    nlohmann::json data = creeper::call("os/getram");
-    float used = data.at("used").get<float>();
-    float total = data.at("free").get<float>() + used;
-    return to_string((int)floor(used / total * 100)) + "%";
-}
 
 void callback(nlohmann::json data) {
     cout << data << endl;
@@ -23,9 +17,6 @@ int main(int argc, char *argv[]) {
     }
     creeper::login = creeper::KeySecretPair(argv[1], argv[2]);
 
-    // todo Test details are valid
-    //if (creeper::call()
-
     // OOP style commands
     creeper::commands["getram"] = new creeper::Command("getram", "os/getram");
     creeper::commands["getram2"] = new creeper::FormattedCommand("getram2", "os/getram", {}, "Free: $free$, Used: $used$");
@@ -36,9 +27,17 @@ int main(int argc, char *argv[]) {
     cmds["getcpu"] = [](vector<string> args)->string{ return creeper::call("os/getcpu").dump();};
     //cmds["getcpu"] = [](vector<string> args)->string {return creeper::commands["getram2"]->run(args);};
 
+    // Initialise alert monitoring thread
+    thread t ([]()->void {creeper::alertLoop(10);});
+
+    // Retrieve what we can access (Currently not working)
+//    nlohmann::json data;
+//    data["key"] = creeper::login.first;
+//    cout << creeper::call("accesscontrol/list", data) << endl;
+
     do {
         string in;
-        cout << "> ";
+        //cout << "> ";
         getline(cin, in);
         if (in.find("quit") != string::npos) break;
         try {
