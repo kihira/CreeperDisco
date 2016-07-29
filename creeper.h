@@ -3,12 +3,12 @@
 
 #include <string>
 #include <fstream>
-#include <curlpp/Infos.hpp>
 #include <unistd.h>
 #include "lib/json/src/json.hpp"
-#include "lib/curlpp/include/curlpp/cURLpp.hpp"
-#include "lib/curlpp/include/curlpp/Easy.hpp"
-#include "lib/curlpp/include/curlpp/Options.hpp"
+#include "curlpp/cURLpp.hpp"
+#include "curlpp/Easy.hpp"
+#include "curlpp/Options.hpp"
+#include "curlpp/Infos.hpp"
 
 namespace creeper {
     using namespace std;
