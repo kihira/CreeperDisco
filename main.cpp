@@ -1,6 +1,7 @@
 #include <iostream>
 #include <thread>
 #include "creeper.h"
+#include "discord.h"
 
 using namespace std;
 
@@ -11,11 +12,12 @@ void callback(nlohmann::json data) {
 int main(int argc, char *argv[]) {
     cout << "Loading CreeperDisco" << endl;
 
-    if (argc < 3) {
+    if (argc < 4) {
         cout << "Invalid number of arguments!";
         return 1;
     }
     creeper::login = creeper::KeySecretPair(argv[1], argv[2]);
+    discord::token = argv[3];
 
     // OOP style commands
     creeper::commands["getram"] = new creeper::Command("getram", "os/getram");
@@ -29,6 +31,9 @@ int main(int argc, char *argv[]) {
 
     // Initialise alert monitoring thread
     thread t ([]()->void {creeper::alertLoop(10);});
+
+    // Initialise Discord client
+    discord::init();
 
     // Retrieve what we can access (Currently not working)
 //    nlohmann::json data;
