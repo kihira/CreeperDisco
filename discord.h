@@ -6,8 +6,6 @@
 #include "curlpp/Infos.hpp"
 #include "lib/json/src/json.hpp"
 
-#define STDC_HEADERS 1
-
 namespace discord {
     using namespace std;
     using namespace curlpp::Options;
@@ -16,28 +14,16 @@ namespace discord {
     typedef websocketpp::client<websocketpp::config::asio_tls_client> client;
     typedef websocketpp::config::asio_tls_client::message_type::ptr message_ptr;
 
+    // todo clean up into a class?
     const string APP_VERSION = "0.0.1";
     const string API_URL = "https://discordapp.com/api/";
     string gateway_url = "";
     string token = "";
-    client m_endpoint;
-    boost::asio::steady_timer heartbeat_timer;
+    client endpoint;
+    boost::asio::io_service asio_service;
+    boost::asio::steady_timer heartbeat_timer(asio_service);
 
     int last_seq = 0;
-
-    void start(string uri) {
-        websocketpp::lib::error_code ec;
-        client::connection_ptr con = m_endpoint.get_connection(uri, ec);
-
-        if (ec) {
-            m_endpoint.get_alog().write(websocketpp::log::alevel::app,ec.message());
-            return;
-        }
-        m_endpoint.connect(con);
-
-        // Start the ASIO io_service run loop
-        m_endpoint.run();
-    }
 
     void heartbeat(client* c, websocketpp::connection_hdl hdl, int interval) {
         json message = {
@@ -51,27 +37,15 @@ namespace discord {
         heartbeat_timer.async_wait(bind(&heartbeat, c, hdl, interval));
     }
 
-    void on_fail(websocketpp::connection_hdl hdl) {
-        client::connection_ptr con = m_endpoint.get_con_from_hdl(hdl);
-
-        cout << "Fail handler" << endl;
-        cout << con->get_state() << endl;
-        cout << con->get_local_close_code() << endl;
-        cout << con->get_local_close_reason() << endl;
-        cout << con->get_remote_close_code() << endl;
-        cout << con->get_remote_close_reason() << endl;
-        cout << con->get_ec() << " - " << con->get_ec().message() << endl;
-    }
-
     void on_message(client* c, websocketpp::connection_hdl hdl, message_ptr msg) {
-        cout << "on_message called with hdl: " << hdl.lock().get()
-             << " and message: " << msg->get_payload()
-             << endl;
+        cout << "Message!" << endl
+             << "Handler: " << hdl.lock().get()
+             << "Message: " << msg->get_payload() << endl;
 
         json payload = json::parse(msg->get_payload());
         // Set last seq before doing anything
         last_seq = payload["s"];
-        switch (payload["op"]) {
+        switch (payload["op"].get<int>()) {
             // Event
             case 0:
                 // READY
@@ -94,14 +68,13 @@ namespace discord {
             default:
                 cerr << "Unknown opcode! Data:" + payload.dump(1) << endl;
         }
-
-        //m_endpoint.close(hdl,websocketpp::close::status::going_away,"");
     }
 
     void on_open(client* c, websocketpp::connection_hdl hdl) {
         json identify = {
                 {"op", 2},
                 {"d", {
+                               {"v", 5},
                                {"token", token},
                                {"properties", {
                                                       {"$os", "linux"},
@@ -116,6 +89,13 @@ namespace discord {
                        }}
         };
         c->send(hdl, identify.dump(), websocketpp::frame::opcode::text);
+    }
+
+    void on_close(client* c, websocketpp::connection_hdl hdl) {
+        client::connection_ptr con = c->get_con_from_hdl(hdl);
+        cerr << "Connection closed!" << endl
+             << "Code: " << con->get_remote_close_code() << endl
+             << "Reason: " << con->get_remote_close_reason() << endl;
     }
 
     json call(string endpoint, json data = {}) {
@@ -144,30 +124,30 @@ namespace discord {
             gateway_url = call("gateway")["url"];
         }
 
-        m_endpoint.set_access_channels(websocketpp::log::alevel::all);
-        m_endpoint.set_error_channels(websocketpp::log::elevel::all);
+        endpoint.set_access_channels(websocketpp::log::alevel::all);
+        endpoint.set_error_channels(websocketpp::log::elevel::all);
 
         // Initialize ASIO
-        m_endpoint.init_asio();
+        endpoint.init_asio(&asio_service);
 
         // Handlers
-        m_endpoint.set_message_handler(bind(&on_message,&m_endpoint,placeholders::_1,placeholders::_2));
-        m_endpoint.set_tls_init_handler([](websocketpp::connection_hdl){
+        endpoint.set_message_handler(bind(&on_message,&endpoint,placeholders::_1,placeholders::_2));
+        endpoint.set_tls_init_handler([](websocketpp::connection_hdl){
             return websocketpp::lib::make_shared<boost::asio::ssl::context>(boost::asio::ssl::context::tlsv12);
         });
-        m_endpoint.set_open_handler(bind(&on_open,&m_endpoint,placeholders::_1));
-        //m_endpoint.set_close_handler(bind(&d_client::on_close,this,::_1));
-        //m_endpoint.set_fail_handler(bind(&on_fail,&m_endpoint,placeholders::_1));
+        endpoint.set_open_handler(bind(&on_open,&endpoint,placeholders::_1));
+        endpoint.set_close_handler(bind(&on_close,&endpoint,placeholders::_1));
 
         websocketpp::lib::error_code ec;
-        client::connection_ptr con = m_endpoint.get_connection(gateway_url, ec);
+        client::connection_ptr con = endpoint.get_connection(gateway_url, ec);
         if (ec) {
-            cout << "could not create connection because: " << ec.message() << endl;
+            cerr << "Failed to create connection" << endl
+                 << "Reason: " << ec.message() << endl;
             return;
         }
 
-        m_endpoint.connect(con);
-        m_endpoint.run();
+        endpoint.connect(con);
+        endpoint.run(); // Run ASIO loop
     }
 }
 
