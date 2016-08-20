@@ -126,6 +126,7 @@ namespace creeper {
         }
     };
 
+    // todo some form of infinite loop is occurring here after calling a formatted command for the second time
     class FormattedCommand : public Command {
     public:
         FormattedCommand(const string &cmd, const string &endpoint, const vector<string> &args, const string returnString) : Command(cmd, endpoint, args) {

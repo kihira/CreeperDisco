@@ -5,6 +5,8 @@
 #include "curlpp/Options.hpp"
 #include "curlpp/Infos.hpp"
 #include "lib/json/src/json.hpp"
+#include "creeper.h"
+#include <codecvt>
 
 namespace discord {
     using namespace std;
@@ -25,6 +27,43 @@ namespace discord {
 
     int last_seq = 0;
 
+    void split(const string input, string delim, vector<string>& output) {
+        string part;
+        size_t pos = 0, start = 0;
+        while ((pos = input.find(delim, 0)) != string::npos) {
+            part = input.substr(start, pos - start);
+            if (part.length() == 0) continue;
+            output.push_back(part);
+            start = pos + 1;
+        }
+        output.push_back(input.substr(start));
+    }
+
+    json call(string callpoint, json data = {}) {
+        stringstream outstream;
+
+        curlpp::Cleanup cleanup; // Clean up used resources
+        curlpp::Easy request;
+
+        request.setOpt<WriteStream>(&outstream);
+        request.setOpt<Url>(API_URL + callpoint);
+        request.setOpt<UserAgent>("DiscordBot (http://github.com/kihira/CreeperDisco, "+APP_VERSION+")");
+        request.setOpt<HttpHeader>({"Authorization: Bot "+token, "Content-Type: application/json"});
+        if (!data.empty()) {
+            request.setOpt<Post>(true);
+            request.setOpt<PostFields>(data.dump());
+            request.setOpt<PostFieldSize>(data.dump().length());
+        }
+
+        request.perform();
+
+        //todo check for rate limiting
+        // todo error checking
+
+        json returned = json::parse(outstream.str());
+        return returned;
+    }
+
     void heartbeat(client* c, websocketpp::connection_hdl hdl, int interval) {
         json message = {
                 {"op", 1},
@@ -38,19 +77,40 @@ namespace discord {
     }
 
     void on_message(client* c, websocketpp::connection_hdl hdl, message_ptr msg) {
-        cout << "Message!" << endl
-             << "Handler: " << hdl.lock().get()
-             << "Message: " << msg->get_payload() << endl;
-
         json payload = json::parse(msg->get_payload());
+        cout << "Message!" << endl
+             << "Handler: " << hdl.lock().get() << endl
+             << "Message: " << payload.dump(3) << endl;
+
         // Set last seq before doing anything
         last_seq = payload["s"];
+        json data = payload["d"];
         switch (payload["op"].get<int>()) {
             // Event
             case 0:
                 // READY
                 if (payload["t"] == "READY") {
-                    heartbeat(c, hdl, payload.at("d").at("heartbeat_interval"));
+                    heartbeat(c, hdl, data["heartbeat_interval"]);
+
+                    cout << "Connecting to Discord Gateway" << endl
+                         << "   Guilds: " << data["guilds"] << endl
+                         << "   DMs: " << data["private_channels"] << endl;
+                }
+                if (payload["t"] == "GUILD_CREATE") {
+                    cout << "Joined Guild \"" << data["name"] << "\" (" << data["id"] << endl
+                         << "    Owner: " << data["owner_id"] << endl
+                         << "    Members: " << data["member_count"] << endl
+                         << "    Large: " << data["large"] << endl;
+                }
+                if (payload["t"] == "MESSAGE_CREATE") {
+                    vector<string> parts;
+                    split(data["content"], " ", parts);
+                    // todo this part needs to most likely be threaded due to slow response times causing blocking
+                    if (parts.size() > 0 && creeper::commands.find(parts[0]) != creeper::commands.end()) {
+                        json send;
+                        send["content"] = creeper::commands[parts[0]]->run(parts.size() > 1 ? vector<string>(&parts[1], &parts[parts.size()-1]) : vector<string>());
+                        call("channels/"+data["channel_id"].get<string>()+"/messages", send);
+                    }
                 }
                 break;
             // Invalid Session
@@ -84,8 +144,7 @@ namespace discord {
                                                       {"$referring_domain", ""}
                                               }},
                                {"compress", "false"},
-                               {"large_threshold", 250},
-                               {"shard", {1, 10}}
+                               {"large_threshold", 250}
                        }}
         };
         c->send(hdl, identify.dump(), websocketpp::frame::opcode::text);
@@ -96,27 +155,29 @@ namespace discord {
         cerr << "Connection closed!" << endl
              << "Code: " << con->get_remote_close_code() << endl
              << "Reason: " << con->get_remote_close_reason() << endl;
+        heartbeat_timer.cancel();
     }
 
-    json call(string endpoint, json data = {}) {
-        stringstream outstream;
-
-        curlpp::Cleanup cleanup; // Clean up used resources
-        curlpp::Easy request;
-
-        request.setOpt<WriteStream>(&outstream);
-        request.setOpt<Url>(API_URL + endpoint);
-        request.setOpt<UserAgent>("DiscordBot (http://github.com/kihira/CreeperDisco, "+APP_VERSION+")");
-        request.setOpt<HttpHeader>({"Authorization: Bot "+token});
-
-        request.perform();
-
-        //todo check for rate limiting
-        // todo error checking
-
-        json returned = json::parse(outstream.str());
-        return returned;
-    }
+//    void async_call(string callpoint, json data, function<void(json)> callback) {
+//        boost::asio::streambuf response;
+//        stringstream outstream;
+//
+//        curlpp::Cleanup cleanup; // Clean up used resources
+//        curlpp::Easy request;
+//
+//        request.setOpt<WriteStream>(&outstream);
+//        request.setOpt<Url>(API_URL + callpoint);
+//        request.setOpt<UserAgent>("DiscordBot (http://github.com/kihira/CreeperDisco, "+APP_VERSION+")");
+//        request.setOpt<HttpHeader>({"Authorization: Bot "+token});
+//
+//        request.perform();
+//
+//        boost::asio::async_read_until(outstream, response, "\r\n", [](boost::system::error_code ec, size_t bytes_transferred) {
+//            cout << "yay" << endl;
+//        });
+//
+//        //boost::asio::async_read_until(outstream, response, "\r\n", bind(&discord::read_handler, boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred));
+//    }
 
     void init() {
         if (gateway_url.length() == 0) {
