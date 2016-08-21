@@ -48,6 +48,7 @@ namespace creeper {
             request.setOpt<WriteStream>(&outstream);
             request.setOpt<Url>(API_URL + endpoint);
             request.setOpt<HttpPost>(form);
+            request.setOpt<Timeout>(20);
 
             request.perform();
 
