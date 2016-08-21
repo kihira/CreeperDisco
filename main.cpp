@@ -27,24 +27,36 @@ int main(int argc, char *argv[]) {
     typedef string(*Cmd)(vector<string>);
     map<string, Cmd> cmds;
     cmds["getcpu"] = [](vector<string> args)->string{ return creeper::call("os/getcpu").dump();};
-    //cmds["getcpu"] = [](vector<string> args)->string {return creeper::commands["getram2"]->run(args);};
-
-    // Initialise alert monitoring thread
-    thread t ([]()->void {creeper::alertLoop(10);});
 
     // Initialise Discord client
-    discord::init();
+    boost::asio::io_service asio_service;
+    discord::Client client(asio_service);
+
+    // Initialise alert monitoring
+    boost::asio::steady_timer alert_timer(asio_service);
+    asio_service.post(bind(&creeper::alert, &alert_timer, 30000));
+
+    // Create threads and run ASIO loop
+    boost::asio::io_service::work work(asio_service); // Need to start work before creating threads otherwise they will terminate immediately
+    thread t1 ([&asio_service](){asio_service.run();});
+    thread t2 ([&asio_service](){asio_service.run();});
+    thread t3 ([&asio_service](){asio_service.run();});
 
     // Retrieve what we can access (Currently not working)
 //    nlohmann::json data;
 //    data["key"] = creeper::login.first;
 //    cout << creeper::call("accesscontrol/list", data) << endl;
 
-    do {
+    while (true) {
         string in;
         //cout << "> ";
         getline(cin, in);
-        if (in.find("quit") != string::npos) break;
+        if (in.find("quit") != string::npos) {
+            client.disconnect();
+            alert_timer.cancel();
+            asio_service.stop();
+            break;
+        }
         try {
             if (in.length() == 0) continue;
             if (cmds.find(in) != cmds.end()) {
@@ -64,7 +76,11 @@ int main(int argc, char *argv[]) {
         catch (curlpp::RuntimeError &e) {
             cerr << e.what() << endl;
         }
-    } while (true);
+    }
+
+    t1.join();
+    t2.join();
+    t3.join();
 
     cout << "Exiting CreeperDisco" << endl;
     return 0;

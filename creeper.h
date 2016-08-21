@@ -4,6 +4,7 @@
 #include <string>
 #include <fstream>
 #include <unistd.h>
+#include <boost/asio/steady_timer.hpp>
 #include "lib/json/src/json.hpp"
 #include "curlpp/cURLpp.hpp"
 #include "curlpp/Easy.hpp"
@@ -76,19 +77,16 @@ namespace creeper {
         return {};
     }
 
-    inline void alertLoop(int delay) {
-        do {
-            cout << "Doing alerts" << endl;
-            json data = call("api/alerts");
-            //cout << data.dump(4) << endl;
-            if (!data.empty()) {
-                for (int i = 0; i < data["alerts"].size(); ++i) {
-                    cout << ((json)data["alerts"][i])["notes"].get<string>() << endl;
-                }
+    void alert(boost::asio::steady_timer* timer, int interval) {
+        json data = call("api/alerts");
+        if (!data.empty()) {
+            for (int i = 0; i < data["alerts"].size(); ++i) {
+                cout << ((json)data["alerts"][i])["notes"].get<string>() << endl;
             }
-            cout << "Sleeping alerts" << endl;
-            sleep(delay);
-        } while (true);
+        }
+
+        timer->expires_from_now(chrono::milliseconds(interval));
+        timer->async_wait(bind(&creeper::alert, timer, interval));
     }
 
     inline string replace(string& input, const string& search, const string& replace) {
