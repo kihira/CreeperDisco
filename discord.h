@@ -80,7 +80,12 @@ namespace discord {
         chrono::time_point<chrono::system_clock> start = chrono::system_clock::now();
 
         json send;
-        send["content"] = creeper::commands[cmd]->run(args);
+        try {
+            send["content"] = creeper::commands[cmd](args);
+        }
+        catch (creeper::CreeperException e) {
+            send["content"] = e.what(); // todo give enduser a nicer error message and log this one internally
+        }
         call("channels/"+chan_id+"/messages", send);
 
         BOOST_LOG_TRIVIAL(info) << "Command " << cmd << "(" << dump_vector(args) << ") took "

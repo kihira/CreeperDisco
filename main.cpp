@@ -19,15 +19,16 @@ int main(int argc, char *argv[]) {
     creeper::login = creeper::KeySecretPair(argv[1], argv[2]);
     discord::token = argv[3];
 
-    // OOP style commands
-    creeper::commands["getram"] = new creeper::FormattedCommand("getram2", "os/getram", {}, "Free: $free$, Used: $used$");
-    creeper::commands["getcpu"] = new creeper::FormattedCommand("getcpu", "os/getcpu", {}, "Free: $free$, Used: $used$");
-    creeper::commands["gethdd"] = new creeper::FormattedCommand("gethdd", "os/gethdd", {}, "Free: $free$, Used: $used$");
-
-    // using function pointers for commands. Good for simple replies but might not work well for larger ones.
-    typedef string(*Cmd)(vector<string>);
-    map<string, Cmd> cmds;
-    cmds["getcpu"] = [](vector<string> args)->string{ return creeper::call("os/getcpu").dump();};
+    creeper::commands["getcpu"] = [](vector<string> args)->string{ return creeper::format(creeper::call("os/getcpu"), "Free: $free$, Used: $used$");};
+    creeper::commands["getram"] = [](vector<string> args)->string{ return creeper::format(creeper::call("os/getram"), "Free: $free$, Used: $used$");};
+    creeper::commands["gethdd"] = [](vector<string> args)->string{ return creeper::format(creeper::call("os/gethdd"), "Free: $free$, Used: $used$");};
+    creeper::commands["stats"] = [](vector<string> args)->string{
+        stringstream output;
+        output << "CPU" << endl << creeper::commands["getcpu"]({}) << endl << endl
+        << "RAM" << endl << creeper::commands["getram"]({}) << endl << endl
+        << "HDD" << endl << creeper::commands["gethdd"]({});
+        return output.str();
+    };
 
     boost::asio::io_service asio_service;
 
@@ -57,11 +58,8 @@ int main(int argc, char *argv[]) {
         }
         try {
             if (in.length() == 0) continue;
-            if (cmds.find(in) != cmds.end()) {
-                cout << cmds[in]({}) << endl;
-            }
-            else if (creeper::commands.find(in) != creeper::commands.end()) {
-                cout << creeper::commands[in]->run() << endl;
+            if (creeper::commands.find(in) != creeper::commands.end()) {
+                cout << creeper::commands[in]({}) << endl;
             }
             else cout << creeper::call(in) << endl;
         }

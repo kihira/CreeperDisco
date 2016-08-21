@@ -17,6 +17,6 @@ include_directories("lib/curlpp/include")
 include_directories("lib/websocketpp")
 add_subdirectory(lib/curlpp)
 TARGET_LINK_LIBRARIES(${PROJECT_NAME} ${Boost_LIBRARIES} curlpp pthread ssl crypto)
-add_definitions(-DBOOST_LOG_DYN_LINK) # required for log
+add_definitions(-DBOOST_LOG_DYN_LINK -O0) # required for log
 
 # Add generated curlpp.dll to the output directory for CreeperDisco target
