@@ -78,6 +78,7 @@ namespace creeper {
     }
 
     void alert(boost::asio::steady_timer* timer, int interval) {
+        chrono::time_point<chrono::system_clock> start = chrono::system_clock::now();
         json data = call("api/alerts");
         if (!data.empty()) {
             for (int i = 0; i < data["alerts"].size(); ++i) {
@@ -87,6 +88,7 @@ namespace creeper {
 
         timer->expires_from_now(chrono::milliseconds(interval));
         timer->async_wait(bind(&creeper::alert, timer, interval));
+        cout << "Alert loop took " << chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now() - start).count() << " milliseconds" << endl;
     }
 
     inline string replace(string& input, const string& search, const string& replace) {
@@ -98,7 +100,6 @@ namespace creeper {
     class Command {
     public:
         Command(const string cmd, const string endpoint, vector<string> args = {}) {
-            this->cmd = cmd;
             this->endpoint = endpoint;
             this->argNames = args;
         }
@@ -106,7 +107,6 @@ namespace creeper {
             return call(args).dump();
         }
     private:
-        string cmd;
         string endpoint;
         vector<string> argNames;
     protected:
@@ -140,10 +140,12 @@ namespace creeper {
             }
 
             string formattedString = returnString;
+            string key = "";
+            string value = "";
             for (json::iterator it = data.begin(); it != data.end(); ++it) {
                 if (it.value().is_object()) continue; // ignore objects for now
-                string key = "$"+it.key()+"$";
-                string value = it.value().dump();
+                key = "$"+it.key()+"$";
+                value = it.value().dump();
                 replace(formattedString, key, value);
             }
             return formattedString;

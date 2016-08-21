@@ -28,13 +28,14 @@ int main(int argc, char *argv[]) {
     map<string, Cmd> cmds;
     cmds["getcpu"] = [](vector<string> args)->string{ return creeper::call("os/getcpu").dump();};
 
-    // Initialise Discord client
     boost::asio::io_service asio_service;
+
+    // Initialise Discord client
     discord::Client client(asio_service);
 
     // Initialise alert monitoring
     boost::asio::steady_timer alert_timer(asio_service);
-    asio_service.post(bind(&creeper::alert, &alert_timer, 30000));
+    creeper::alert(&alert_timer, 30000);
 
     // Create threads and run ASIO loop
     boost::asio::io_service::work work(asio_service); // Need to start work before creating threads otherwise they will terminate immediately
@@ -52,9 +53,6 @@ int main(int argc, char *argv[]) {
         //cout << "> ";
         getline(cin, in);
         if (in.find("quit") != string::npos) {
-            client.disconnect();
-            alert_timer.cancel();
-            asio_service.stop();
             break;
         }
         try {
@@ -77,6 +75,10 @@ int main(int argc, char *argv[]) {
             cerr << e.what() << endl;
         }
     }
+
+    client.disconnect();
+    alert_timer.cancel();
+    asio_service.reset();
 
     t1.join();
     t2.join();

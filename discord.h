@@ -32,6 +32,18 @@ namespace discord {
         output.push_back(input.substr(start));
     }
 
+    template<typename C>
+    string dump_vector(const vector<C>& input) {
+        if (input.size() == 0) return "";
+
+        stringstream output;
+        for (int i = 0; i < input.size(); ++i) {
+            output << input[i];
+            if (i != input.size()-1) output << ",";
+        }
+        return output.str();
+    }
+
     json call(string callpoint, json data = {}) {
         stringstream outstream;
 
@@ -58,9 +70,15 @@ namespace discord {
     }
 
     void run_cmd(string cmd, vector<string> args, string chan_id) {
+        chrono::time_point<chrono::system_clock> start = chrono::system_clock::now();
+
         json send;
         send["content"] = creeper::commands[cmd]->run(args);
         call("channels/"+chan_id+"/messages", send);
+
+        cout << "Command " << cmd << "(" << dump_vector(args) << ") took "
+             << chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now() - start).count()
+             << " milliseconds" << endl;
     }
 
     // todo should there be one Client per gateway connection?
@@ -162,7 +180,6 @@ namespace discord {
                         split(data["content"], " ", parts);
                         if (parts.size() > 0 && creeper::commands.find(parts[0]) != creeper::commands.end()) {
                             asio_service.post(bind(&run_cmd, parts[0], vector<string>(), data["channel_id"]));
-                            //run_cmd(parts[0], parts.size() > 1 ? vector<string>(&parts[1], &parts[parts.size()-1]) : vector<string>(), data["channel_id"]);
                         }
                     }
                     break;
@@ -193,7 +210,7 @@ namespace discord {
                     {"op", 1},
                     {"d", last_seq}
             };
-            cout << "Sending heartbeat. Last Seq: " + last_seq << endl;
+            cout << "Sending heartbeat. Last Seq: " << to_string(last_seq) << endl;
             endpoint.send(hdl, message.dump(), websocketpp::frame::opcode::text);
 
             heartbeat_timer.expires_from_now(chrono::milliseconds(interval));
