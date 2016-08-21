@@ -20,8 +20,9 @@ int main(int argc, char *argv[]) {
     discord::token = argv[3];
 
     // OOP style commands
-    creeper::commands["getram"] = new creeper::Command("getram", "os/getram");
-    creeper::commands["getram2"] = new creeper::FormattedCommand("getram2", "os/getram", {}, "Free: $free$, Used: $used$");
+    creeper::commands["getram"] = new creeper::FormattedCommand("getram2", "os/getram", {}, "Free: $free$, Used: $used$");
+    creeper::commands["getcpu"] = new creeper::FormattedCommand("getcpu", "os/getcpu", {}, "Free: $free$, Used: $used$");
+    creeper::commands["gethdd"] = new creeper::FormattedCommand("gethdd", "os/gethdd", {}, "Free: $free$, Used: $used$");
 
     // using function pointers for commands. Good for simple replies but might not work well for larger ones.
     typedef string(*Cmd)(vector<string>);
@@ -50,7 +51,6 @@ int main(int argc, char *argv[]) {
 
     while (true) {
         string in;
-        //cout << "> ";
         getline(cin, in);
         if (in.find("quit") != string::npos) {
             break;
@@ -76,9 +76,8 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    client.disconnect();
-    alert_timer.cancel();
-    asio_service.reset();
+    //client.disconnect();
+    asio_service.stop();
 
     t1.join();
     t2.join();

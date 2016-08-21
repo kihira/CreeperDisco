@@ -6,7 +6,7 @@
 #include "curlpp/Infos.hpp"
 #include "lib/json/src/json.hpp"
 #include "creeper.h"
-#include <codecvt>
+#include <boost/log/trivial.hpp>
 
 namespace discord {
     using namespace std;
@@ -15,6 +15,7 @@ namespace discord {
 
     const string APP_VERSION = "0.0.1";
     const string API_URL = "https://discordapp.com/api/";
+    mutex send_mutex;
     string gateway_url = "";
     string token = "";
 
@@ -23,7 +24,7 @@ namespace discord {
     void split(const string input, string delim, vector<string>& output) {
         string part;
         size_t pos = 0, start = 0;
-        while ((pos = input.find(delim, 0)) != string::npos) {
+        while ((pos = input.find(delim, start)) != string::npos) {
             part = input.substr(start, pos - start);
             if (part.length() == 0) continue;
             output.push_back(part);
@@ -65,8 +66,14 @@ namespace discord {
         //todo check for rate limiting
         // todo error checking
 
-        json returned = json::parse(outstream.str());
-        return returned;
+        try {
+            json returned = json::parse(outstream.str());
+            return returned;
+        }
+        catch(invalid_argument e) {
+            cerr << "Failed to parse return from Discord" << endl
+                 << outstream.str() << endl;
+        }
     }
 
     void run_cmd(string cmd, vector<string> args, string chan_id) {
@@ -76,7 +83,7 @@ namespace discord {
         send["content"] = creeper::commands[cmd]->run(args);
         call("channels/"+chan_id+"/messages", send);
 
-        cout << "Command " << cmd << "(" << dump_vector(args) << ") took "
+        BOOST_LOG_TRIVIAL(info) << "Command " << cmd << "(" << dump_vector(args) << ") took "
              << chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now() - start).count()
              << " milliseconds" << endl;
     }
@@ -92,7 +99,7 @@ namespace discord {
             if (gateway_url.length() == 0) {
                 // todo retrying on failed connection
                 gateway_url = call("gateway")["url"];
-                cout << "Using gateway " << gateway_url << endl;
+                BOOST_LOG_TRIVIAL(info) << "Using gateway " << gateway_url << endl;
             }
 
             endpoint.set_access_channels(websocketpp::log::alevel::all);
@@ -140,7 +147,9 @@ namespace discord {
                                    {"large_threshold", 250}
                            }}
             };
+            send_mutex.lock();
             endpoint.send(hdl, identify.dump(), websocketpp::frame::opcode::text);
+            send_mutex.unlock();
         }
         void on_close(websocketpp::connection_hdl hdl) {
             client::connection_ptr con = endpoint.get_con_from_hdl(hdl);
@@ -151,7 +160,7 @@ namespace discord {
         }
         void on_message(websocketpp::connection_hdl hdl, message_ptr msg) {
             json payload = json::parse(msg->get_payload());
-            cout << "Message!" << endl
+            BOOST_LOG_TRIVIAL(info) << "Message!" << endl
                  << "Handler: " << hdl.lock().get() << endl
                  << "Message: " << payload.dump(3) << endl;
 
@@ -165,12 +174,12 @@ namespace discord {
                     if (payload["t"] == "READY") {
                         heartbeat(hdl, data["heartbeat_interval"]);
 
-                        cout << "Connecting to Discord Gateway" << endl
+                        BOOST_LOG_TRIVIAL(info) << "Connecting to Discord Gateway" << endl
                              << "   Guilds: " << data["guilds"] << endl
                              << "   DMs: " << data["private_channels"] << endl;
                     }
                     if (payload["t"] == "GUILD_CREATE") {
-                        cout << "Joined Guild \"" << data["name"] << "\" (" << data["id"] << endl
+                        BOOST_LOG_TRIVIAL(info) << "Joined Guild \"" << data["name"] << "\" (" << data["id"] << endl
                              << "    Owner: " << data["owner_id"] << endl
                              << "    Members: " << data["member_count"] << endl
                              << "    Large: " << data["large"] << endl;
@@ -190,10 +199,10 @@ namespace discord {
                     // HELLO
                 case 10:
                     // This has never been sent in my time of testing but adding it here in case it finally happens
-                    cout << "Received HELLO" << endl;
+                    BOOST_LOG_TRIVIAL(info) << "Received HELLO" << endl;
                     // Heartbeat ACK
                 case 11:
-                    cout << "Heartbeat ACK'd" << endl;
+                    BOOST_LOG_TRIVIAL(info) << "Heartbeat ACK'd" << endl;
                     break;
                 default:
                     cerr << "Unknown opcode! Data:" + payload.dump(1) << endl;
@@ -210,8 +219,10 @@ namespace discord {
                     {"op", 1},
                     {"d", last_seq}
             };
-            cout << "Sending heartbeat. Last Seq: " << to_string(last_seq) << endl;
+            BOOST_LOG_TRIVIAL(info) << "Sending heartbeat. Last Seq: " << to_string(last_seq) << endl;
+            send_mutex.lock();
             endpoint.send(hdl, message.dump(), websocketpp::frame::opcode::text);
+            send_mutex.unlock();
 
             heartbeat_timer.expires_from_now(chrono::milliseconds(interval));
             heartbeat_timer.async_wait(bind(&Client::heartbeat, this, hdl, interval));

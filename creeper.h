@@ -10,6 +10,7 @@
 #include "curlpp/Easy.hpp"
 #include "curlpp/Options.hpp"
 #include "curlpp/Infos.hpp"
+#include <boost/log/trivial.hpp>
 
 namespace creeper {
     using namespace std;
@@ -83,13 +84,13 @@ namespace creeper {
         json data = call("api/alerts");
         if (!data.empty()) {
             for (int i = 0; i < data["alerts"].size(); ++i) {
-                cout << ((json)data["alerts"][i])["notes"].get<string>() << endl;
+                BOOST_LOG_TRIVIAL(info) << ((json)data["alerts"][i])["notes"].get<string>() << endl;
             }
         }
 
         timer->expires_from_now(chrono::milliseconds(interval));
         timer->async_wait(bind(&creeper::alert, timer, interval));
-        cout << "Alert loop took " << chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now() - start).count() << " milliseconds" << endl;
+        BOOST_LOG_TRIVIAL(info) << "Alert loop took " << chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now() - start).count() << " milliseconds" << endl;
     }
 
     inline string replace(string& input, const string& search, const string& replace) {
@@ -125,7 +126,6 @@ namespace creeper {
         }
     };
 
-    // todo some form of infinite loop is occurring here after calling a formatted command for the second time
     class FormattedCommand : public Command {
     public:
         FormattedCommand(const string &cmd, const string &endpoint, const vector<string> &args, const string returnString) : Command(cmd, endpoint, args) {
