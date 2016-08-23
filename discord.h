@@ -13,11 +13,15 @@ namespace discord {
     using namespace curlpp::Options;
     using json = nlohmann::json;
 
+    typedef uint64_t snowflake;
+
     const string APP_VERSION = "0.0.1";
     const string API_URL = "https://discordapp.com/api/";
     mutex send_mutex;
     string gateway_url = "";
     string token = "";
+    map<snowflake, creeper::Server*> discordCHMap;
+    map<snowflake, creeper::Server*> chanServerMap; // todo more use of pointers? Store guild ID only once on Server then have things point to it?
 
     int last_seq = 0;
 
@@ -45,10 +49,8 @@ namespace discord {
         return output.str();
     }
 
-    size_t header(char* header, size_t something, size_t something2) {
-        cout << header << endl
-             << something << endl
-             << something2 << endl;
+    inline snowflake sf(string in) {
+        return stoull(in);
     }
 
     json call(string callpoint, json data = {}) {
@@ -97,12 +99,13 @@ namespace discord {
         return {};
     }
 
-    void run_cmd(string cmd, vector<string> args, string chan_id) {
+    // todo pass server in instead and use it for logging
+    void run_cmd(creeper::KeySecretPair& login, string cmd, vector<string> args, string chan_id) {
         chrono::time_point<chrono::system_clock> start = chrono::system_clock::now();
 
         json send;
         try {
-            send["content"] = creeper::commands[cmd](args);
+            send["content"] = creeper::commands[cmd](login, args);
         }
         catch (creeper::CreeperException e) {
             send["content"] = e.what(); // todo give enduser a nicer error message and log this one internally
@@ -205,16 +208,22 @@ namespace discord {
                              << "   DMs: " << data["private_channels"] << endl;
                     }
                     if (payload["t"] == "GUILD_CREATE") {
-                        BOOST_LOG_TRIVIAL(info) << "Joined Guild \"" << data["name"] << "\" (" << data["id"] << endl
+                        BOOST_LOG_TRIVIAL(info) << "Joined Guild " << data["name"] << " (" << data["id"] << endl
                              << "    Owner: " << data["owner_id"] << endl
                              << "    Members: " << data["member_count"] << endl
                              << "    Large: " << data["large"] << endl;
+                        if (data["channels"].size() > 0) {
+                            // load channels to map
+                            creeper::Server* srv = discordCHMap[sf(data["id"])];
+                            for_each(data["channels"].begin(), data["channels"].end(), [data](json& value) { discord::chanServerMap[sf(value["id"])] = discordCHMap[sf(data["id"])];});
+                        }
                     }
                     if (payload["t"] == "MESSAGE_CREATE") {
                         vector<string> parts;
                         split(data["content"], " ", parts);
                         if (parts.size() > 0 && creeper::commands.find(parts[0]) != creeper::commands.end()) {
-                            asio_service.post(bind(&run_cmd, parts[0], vector<string>(), data["channel_id"]));
+                            creeper::KeySecretPair& login = chanServerMap[sf(data["channel_id"])]->login;
+                            asio_service.post(bind(&run_cmd, login, parts[0], vector<string>(), data["channel_id"]));
                         }
                     }
                     break;

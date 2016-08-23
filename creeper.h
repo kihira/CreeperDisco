@@ -17,10 +17,12 @@ namespace creeper {
     using namespace curlpp::Options;
     using json = nlohmann::json;
 
-    typedef pair<string, string> KeySecretPair;
-
     const string API_URL = "https://api.creeper.host/";
-    KeySecretPair login;
+
+    typedef const pair<const string, const string> KeySecretPair;
+
+    typedef string(*Cmd)(KeySecretPair&, vector<string>);
+    map<string, Cmd> commands;
 
     struct CreeperException : public exception {
         virtual const char *what() throw() {
@@ -35,7 +37,18 @@ namespace creeper {
         }
     };
 
-    inline json call(string endpoint, json data = {}, function<void(json)> callback = NULL) {
+    class Server {
+    public:
+        Server(const string name, const string key, const string secret) : name(name), login(key, secret) {
+        }
+        KeySecretPair login;
+    private:
+        const string name;
+    };
+
+    list<Server*> servers;
+
+    inline json call(KeySecretPair& login, string endpoint, json data = {}, function<void(json)> callback = NULL) {
         stringstream outstream;
 
         curlpp::Cleanup cleanup; // Clean up used resources
@@ -72,10 +85,13 @@ namespace creeper {
 
     void alert(boost::asio::steady_timer* timer, int interval) {
         chrono::time_point<chrono::system_clock> start = chrono::system_clock::now();
-        json data = call("api/alerts");
-        if (!data.empty()) {
-            for (int i = 0; i < data["alerts"].size(); ++i) {
-                BOOST_LOG_TRIVIAL(info) << ((json)data["alerts"][i])["notes"].get<string>() << endl;
+
+        for (list<Server*>::const_iterator iterator = servers.begin(); iterator != servers.end(); iterator++) {
+            json data = call((*iterator)->login, "api/alerts"); // todo use Multi interface?
+            if (!data.empty()) {
+                for (int i = 0; i < data["alerts"].size(); ++i) {
+                    BOOST_LOG_TRIVIAL(info) << ((json)data["alerts"][i])["notes"].get<string>() << endl;
+                }
             }
         }
 
@@ -102,71 +118,6 @@ namespace creeper {
         }
         return formattedString;
     }
-
-    class Command {
-    public:
-        Command(const string cmd, const string endpoint, vector<string> args = {}) {
-            this->endpoint = endpoint;
-            this->argNames = args;
-        }
-        virtual string run(vector<string>args = {}) {
-            return call(args).dump();
-        }
-    private:
-        string endpoint;
-        vector<string> argNames;
-    protected:
-        json call(vector<string>args) {
-            json data;
-            if (argNames.size() > 0) {
-                if (args.size() != argNames.size()) throw invalid_argument("Invalid number of parameters for command!");
-
-                for (int i = 0; i < argNames.size(); ++i) {
-                    data[argNames[i]] = args[i];
-                }
-            }
-
-            try {
-                return creeper::call(endpoint, data);
-            }
-            catch (CreeperException e) {
-                return e.what();
-            }
-        }
-    };
-
-    class FormattedCommand : public Command {
-    public:
-        FormattedCommand(const string &cmd, const string &endpoint, const vector<string> &args, const string returnString) : Command(cmd, endpoint, args) {
-            this->returnString = returnString;
-        }
-        string run(vector<string>args = {}) {
-            json data;
-            try {
-                data = call(args);
-            }
-            catch (CreeperException &e) {
-                return e.what();
-            }
-
-            string formattedString = returnString;
-            string key = "";
-            string value = "";
-            for (json::iterator it = data.begin(); it != data.end(); ++it) {
-                if (it.value().is_object()) continue; // ignore objects for now
-                key = "$"+it.key()+"$";
-                value = it.value().dump();
-                replace(formattedString, key, value);
-            }
-            return formattedString;
-        }
-    private:
-        string returnString;
-    };
-
-    //map<string, Command*> commands;
-    typedef string(*Cmd)(vector<string>);
-    map<string, Cmd> commands;
 }
 
 #endif //DISCORDBOT_CREEPER_H

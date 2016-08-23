@@ -16,17 +16,24 @@ int main(int argc, char *argv[]) {
         cout << "Invalid number of arguments!";
         return 1;
     }
-    creeper::login = creeper::KeySecretPair(argv[1], argv[2]);
+    // todo testing/manual reg
+    discord::discordCHMap[stoull(argv[4])] = new creeper::Server("Test", argv[1], argv[2]);
     discord::token = argv[3];
 
-    creeper::commands["getcpu"] = [](vector<string> args)->string{ return creeper::format(creeper::call("os/getcpu"), "Free: $free$, Used: $used$");};
-    creeper::commands["getram"] = [](vector<string> args)->string{ return creeper::format(creeper::call("os/getram"), "Free: $free$, Used: $used$");};
-    creeper::commands["gethdd"] = [](vector<string> args)->string{ return creeper::format(creeper::call("os/gethdd"), "Free: $free$, Used: $used$");};
-    creeper::commands["stats"] = [](vector<string> args)->string{
+    // todo need to think whether to stay with function pointers or switch back to oop
+    creeper::commands["getcpu"] = [](creeper::KeySecretPair& login, vector<string> args)->string{
+        nlohmann::json data = creeper::call(login, "os/getcpu");
+        return "Usage: " + to_string(round((100 - data["free"].get<float>())*100)) + "%"; // Use free as "used" returns a string
+    };
+    creeper::commands["getram"] = [](creeper::KeySecretPair& login, vector<string> args)->string{ return creeper::format(
+            creeper::call(login, "os/getram"), "Free: $free$mb, Used: $used$mb");};
+    creeper::commands["gethdd"] = [](creeper::KeySecretPair& login, vector<string> args)->string{ return creeper::format(
+            creeper::call(login, "os/gethdd"), "Free: $free$, Used: $used$");};
+    creeper::commands["stats"] = [](creeper::KeySecretPair& login, vector<string> args)->string{
         stringstream output;
-        output << "CPU" << endl << creeper::commands["getcpu"]({}) << endl << endl
-        << "RAM" << endl << creeper::commands["getram"]({}) << endl << endl
-        << "HDD" << endl << creeper::commands["gethdd"]({});
+        output << "CPU" << endl << creeper::commands["getcpu"](login, {}) << endl << endl
+        << "RAM" << endl << creeper::commands["getram"](login, {}) << endl << endl
+        << "HDD" << endl << creeper::commands["gethdd"](login, {});
         return output.str();
     };
 
@@ -56,26 +63,10 @@ int main(int argc, char *argv[]) {
         if (in.find("quit") != string::npos) {
             break;
         }
-        try {
-            if (in.length() == 0) continue;
-            if (creeper::commands.find(in) != creeper::commands.end()) {
-                cout << creeper::commands[in]({}) << endl;
-            }
-            else cout << creeper::call(in) << endl;
-        }
-        catch (creeper::CreeperException e) {
-            cerr << e.what() << endl;
-        }
-        catch (curlpp::LogicError &e) {
-            cerr << e.what() << endl;
-        }
-        catch (curlpp::RuntimeError &e) {
-            cerr << e.what() << endl;
-        }
     }
 
-    //client.disconnect();
-    asio_service.stop();
+    client.disconnect();
+    asio_service.reset();
 
     t1.join();
     t2.join();
