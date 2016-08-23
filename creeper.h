@@ -49,8 +49,11 @@ namespace creeper {
         request.setOpt<Url>(API_URL + endpoint);
         request.setOpt<HttpPost>(form);
         request.setOpt<Timeout>(20);
+        //request.setOpt<HttpVersion>(CURL_HTTP_VERSION_2_0); Need to manually compile curl with it enabled https://serversforhackers.com/video/curl-with-http2-support
 
+        chrono::time_point<chrono::system_clock> start = chrono::system_clock::now();
         request.perform();
+        BOOST_LOG_TRIVIAL(info) << "Endpoint call (" << endpoint << ") took " << chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now() - start).count() << " milliseconds" << endl;
 
         json returned = json::parse(outstream.str());
         long response = curlpp::infos::ResponseCode::get(request);

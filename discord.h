@@ -45,6 +45,12 @@ namespace discord {
         return output.str();
     }
 
+    size_t header(char* header, size_t something, size_t something2) {
+        cout << header << endl
+             << something << endl
+             << something2 << endl;
+    }
+
     json call(string callpoint, json data = {}) {
         stringstream outstream;
 
@@ -63,17 +69,32 @@ namespace discord {
 
         request.perform();
 
-        //todo check for rate limiting
-        // todo error checking
+        stringstream headers;
+        string output = outstream.str();
+        size_t body_start = output.find("{"); // todo some endpoints return starting with [ if getting an array of something
+        string body = output.substr(body_start);
+        headers << output.substr(0, body_start);
+        while (!headers.eof()) {
+            string header;
+            getline(headers, header);
+            if (header.find("X-RateLimit") != string::npos) cout << header << endl;
+        }
+
+        long response = curlpp::infos::ResponseCode::get(request);
+        if (response == 429l) {
+            // todo rate limiting
+        }
 
         try {
-            json returned = json::parse(outstream.str());
+            json returned = json::parse(body);
             return returned;
         }
         catch(invalid_argument e) {
             cerr << "Failed to parse return from Discord" << endl
-                 << outstream.str() << endl;
+                    << "Headers:" << endl << headers.str() << endl
+                    << "Body:" << endl << body << endl;
         }
+        return {};
     }
 
     void run_cmd(string cmd, vector<string> args, string chan_id) {
